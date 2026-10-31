@@ -1,0 +1,5 @@
+# 배포에서 빼는 것 — 테스트 · 백업 · 내부 기록
+_smoke.html
+*.v1.js
+*.v2.js
+supabase/설정기록_S6.md

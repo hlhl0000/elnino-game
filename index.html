@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>엘니뇨 어부 버티기 게임</title>
+<style>
+  :root{--bg:#f5f7fa;--panel:#fff;--line:#e3e6ea;--t1:#1f2328;--t2:#454b52;--t3:#5b636b;--accent:#2563eb;--west:#b45309;--east:#0f5c8c;--red:#b91c1c;--green:#15803d;--shadow:0 8px 20px rgba(16,24,40,.10),0 2px 6px rgba(16,24,40,.06)}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#0f172a;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;color:var(--t1);-webkit-tap-highlight-color:transparent}
+  button{font:inherit;border:1px solid var(--line);background:#fff;border-radius:12px;cursor:pointer;color:var(--t1)}
+  button:disabled{opacity:.4;cursor:default}
+  input{font:inherit;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--t1)}
+  @media (pointer:coarse){ html input{font-size:16px} }
+  .shake{animation:shake .35s}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+  .bad{border-color:var(--red)!important;background:#fdecea!important}
+  /* ── TV(1366×768 · 창에 맞춰 축소) ── */
+  #tvwrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  #tv{position:relative;width:1366px;height:768px;background:#fff;overflow:hidden;transform-origin:center center;flex:none}
+  #board{position:absolute;left:0;top:0;width:900px;height:560px;overflow:hidden;background:#dfeefa}
+  #board canvas{position:absolute;left:0;top:0}
+  #tvc2,#tvov,#bdov{position:absolute;left:0;top:0}
+  #tvc2{pointer-events:none}   /* 10-31 E2E: 그리기 캔버스가 판 위 입력칸 · 단추를 덮어 클릭을 가로챔 */
+  #tvov,#bdov{width:100%;height:100%;pointer-events:none}
+  .ov{position:absolute;font-variant-numeric:tabular-nums}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-weight:700;font-size:22px}
+  .chip svg{width:26px;height:26px}
+  .hud{left:50%;top:10px;transform:translateX(-50%);display:flex;gap:8px}
+  .tvbtn{position:absolute;pointer-events:auto;font-size:20px;font-weight:700;padding:10px 22px}
+  .tvbtn.main{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .vhead{display:flex;align-items:center;gap:8px;font-size:22px;font-weight:700}
+  .vhead svg{width:30px;height:30px}
+  .rank{font-size:15px;display:flex;align-items:center;gap:8px;height:24px}
+  .rank .r{width:26px;text-align:right;font-weight:700;color:var(--t3)}
+  .rank .n{width:96px;white-space:nowrap;overflow:hidden}
+  .cellnum{font-size:15px;font-weight:700;display:flex;align-items:center;gap:3px}
+  .cellnum svg{width:16px;height:16px}
+  .rankpop{font-size:15px;font-weight:800;color:var(--east);margin-left:6px}
+  .cardbox{position:absolute;perspective:700px}
+  .cardbox canvas{display:block;border-radius:10px;box-shadow:var(--shadow);backface-visibility:hidden}
+  .bigcode{left:0;width:900px;top:150px;text-align:center;font-size:130px;font-weight:800;letter-spacing:.14em;color:var(--t1)}
+  .lobbyppl{left:0;width:900px;top:330px;text-align:center}
+  .tvform{position:absolute;left:300px;top:220px;width:300px;display:flex;flex-direction:column;gap:12px;pointer-events:auto}
+  .tvform input{font-size:24px;padding:12px;text-align:center;letter-spacing:.2em}
+  .tvform button{font-size:22px;font-weight:700;padding:12px;background:var(--accent);color:#fff;border-color:var(--accent)}
+  .elnino-ic{position:absolute;right:8px;bottom:8px;width:34px;height:34px;opacity:.35;pointer-events:auto;border-radius:50%;display:flex;align-items:center;justify-content:center;touch-action:none}
+  .elnino-ic svg{width:24px;height:24px}
+  .elnino-ic .ring{position:absolute;inset:0;border-radius:50%;border:3px solid transparent}
+  .usr{position:absolute;font-size:20px;background:#fffbe6;border:1px dashed #b45309;border-radius:8px;padding:6px 10px}
+  .usr:empty{display:none}
+  /* ── 휴대폰 ── */
+  #phone{width:100%;max-width:420px;min-height:100%;margin:0 auto;background:#fff;position:relative}
+  #phone canvas{display:block}
+  .phud{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+  .phud span{display:inline-flex;align-items:center;gap:4px}
+  .phud svg{width:22px;height:22px}
+  .sea{position:relative;overflow:hidden}
+  .sea canvas{position:absolute;left:0;top:0}
+  .pbtns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 10px 4px}
+  .pbtns button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;font-size:16px;font-weight:700;min-height:78px}
+  .pbtns button svg{width:30px;height:30px}
+  .pbtns button.sel{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .pcoop{display:flex;justify-content:center;padding:4px 10px 14px}
+  .pcoop button{display:inline-flex;align-items:center;gap:6px;font-size:15px;font-weight:700;padding:8px 16px}
+  .pcoop svg{width:22px;height:22px}
+  .pform{display:flex;flex-direction:column;gap:12px;padding:28px 20px}
+  .pform input{font-size:20px;padding:12px;text-align:center}
+  .pform button{font-size:20px;font-weight:700;padding:14px;background:var(--accent);color:#fff;border-color:var(--accent)}
+  .pwait{display:flex;flex-direction:column;align-items:center;gap:14px;padding:60px 20px;font-size:26px;font-weight:700}
+  .pwait svg{width:64px;height:64px}
+  .pout{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(240,242,245,.45);pointer-events:none}
+  .pout svg{width:72px;height:72px;color:#5f6b7a}
+  .pend{display:flex;flex-direction:column;align-items:center;gap:10px;padding:40px 10px;font-size:44px;font-weight:800}
+  .pend svg{width:60px;height:60px}
+  .pend .row{display:flex;align-items:center;gap:8px;font-size:32px}
+  .pend .row svg{width:36px;height:36px}
+  .pop{position:absolute;font-size:30px;font-weight:800;color:var(--east);text-shadow:0 0 3px #fff,0 0 3px #fff;transform:translate(-50%,-100%);pointer-events:none}
+  #phone .usr{position:static;margin:8px 10px;font-size:15px}
+</style>
+</head>
+<body>
+<div id="tvwrap" hidden><section id="tv" aria-label="교사 화면">
+  <div id="board"><canvas id="bd3"></canvas><canvas id="bd2"></canvas><div id="bdov"></div></div>
+  <canvas id="tvc2"></canvas><div id="tvov"></div>
+</section></div>
+<section id="phone" hidden aria-label="학생 화면"><div id="phov"></div></section>
+
+<script src="vendor/three.min.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="config.js"></script>
+<script src="core.js"></script>
+<script src="text.js"></script>
+<script src="art2d.js"></script>
+<script src="art3d.js"></script>
+<script src="net.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>
