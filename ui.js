@@ -269,12 +269,23 @@
     var fit = function () { var k = Math.min(window.innerWidth / 1366, window.innerHeight / 768); tv.style.transform = 'scale(' + k + ')'; };
     window.addEventListener('resize', fit); fit();
   } else { phone.hidden = false; }
+  var ICON3 = {};   /* 마을별 3D 아이콘 그림 주소(data URL) */
+  function icon3(kind, side) {
+    var key = kind + '|' + side;
+    if (ICON3[key] === undefined) {
+      ICON3[key] = null;
+      if (X3 && X3.icon) { try { var c = X3.icon(kind, 40, { dpr: Math.min(3, window.devicePixelRatio || 1), village: side }); if (c) ICON3[key] = c.toDataURL(); } catch (e) {} }
+      if (X3 && X3.iconDispose) { try { X3.iconDispose(); } catch (e) {} }
+    }
+    return ICON3[key] ? '<img class="ic3" alt="" src="' + ICON3[key] + '">' : null;
+  }
   function phoneWorld(side) {
     if (!X3) return null; if (P3 && phSide === side) return P3; if (P3) P3.dispose();
-    try { P3 = X3.create(phCanvas, { view: 'phone', side: side, dpr: Math.min(2, window.devicePixelRatio || 1), quality: 'low' });   /* 휴대폰 = 가벼운 화질(Astra v2.1 quality low) */ P3.resize(phW(), 300); css3(phCanvas, phW(), 300); phSide = side; } catch (e) { P3 = null; }
+    try { P3 = X3.create(phCanvas, { view: 'phone', side: side, dpr: Math.min(2, window.devicePixelRatio || 1), quality: 'low' });   /* 휴대폰 = 가벼운 화질 · v2.5 배 뒤 추적 시점 */ P3.resize(phW(), SEAH); css3(phCanvas, phW(), SEAH); phSide = side; } catch (e) { P3 = null; }
     return P3;
   }
   function phW() { return Math.min(420, window.innerWidth); }
+  var SEAH = Math.round(Math.min(420, Math.max(300, (window.innerHeight || 700) * 0.42)));   /* 휴대폰 바다 칸 높이 */
   function state3(s, spot) {
     var e = s.env, c = s.cards;
     return { env: { wind: e.wind, warmE: e.warmE, coolW: e.coolW, upwell: e.upwell, fishE: e.fishE, fishW: e.fishW, rainE: e.rainE, rainW: e.rainW, flood: c.east === 'flood' ? 0.8 : 0, drought: e.drought, fire: c.west === 'fire' ? 0.8 : 0 },
@@ -452,18 +463,18 @@
     }
     PH.top = document.createElement('canvas'); sizeCanvas(PH.top, w, 56, Math.min(3, window.devicePixelRatio || 1)); phov.appendChild(PH.top);
     PH.hud = el('div', 'phud'); phov.appendChild(PH.hud);
-    PH.sea = el('div', 'sea', null, 'height:300px'); phov.appendChild(PH.sea);
-    if (X3 && phoneWorld(me.side)) PH.sea.appendChild(phCanvas); else { PH.sea2 = document.createElement('canvas'); sizeCanvas(PH.sea2, w, 300, Math.min(3, window.devicePixelRatio || 1)); PH.sea.appendChild(PH.sea2); }
+    PH.sea = el('div', 'sea', null, 'height:' + SEAH + 'px'); phov.appendChild(PH.sea);
+    if (X3 && phoneWorld(me.side)) PH.sea.appendChild(phCanvas); else { PH.sea2 = document.createElement('canvas'); sizeCanvas(PH.sea2, w, SEAH, Math.min(3, window.devicePixelRatio || 1)); PH.sea.appendChild(PH.sea2); }
     PH.over = el('div', null, null, 'position:absolute;inset:0;pointer-events:none'); PH.sea.appendChild(PH.over);
     PH.usr = el('div', 'usr', ''); phov.appendChild(PH.usr);
     if (me.isOut) { PH.sea.appendChild(el('div', 'pout', icon('out', 72))); return; }
     var btns = el('div', 'pbtns'); PH.btn = {};
     ['near', 'far', 'rest'].forEach(function (k) {
-      var b = el('button', '', icon(k, 30) + '<span class="lb">' + TX.btn[k] + '</span><span class="cost">' + icon('stamina', 16) + '<span class="cv">' + ({ near: '−' + CORE.B.nearSt, far: '−' + CORE.B.farSt, rest: '+' + CORE.B.rest })[k] + '</span></span>'); b.type = 'button'; b.dataset.k = k;
+      var b = el('button', '', (icon3(k, me.side) || icon(k, 30)) + '<span class="lb">' + TX.btn[k] + '</span><span class="cost">' + icon('stamina', 16) + '<span class="cv">' + ({ near: '−' + CORE.B.nearSt, far: '−' + CORE.B.farSt, rest: '+' + CORE.B.rest })[k] + '</span></span>'); b.type = 'button'; b.dataset.k = k;
       b.addEventListener('click', function () { stuChoose(k); }); btns.appendChild(b); PH.btn[k] = b;
     });
     phov.appendChild(btns);
-    var dp = el('div', 'pcoop', '<button type="button" data-k="store">' + icon('store', 22) + '<span>' + TX.btn.store + '</span><span class="cost">' + icon('fish', 16) + '<span>−1</span></span><span class="dn"></span></button>');
+    var dp = el('div', 'pcoop', '<button type="button" data-k="store">' + (icon3('store', me.side) || icon('store', 22)) + '<span>' + TX.btn.store + '</span><span class="cost">' + icon('fish', 16) + '<span>−1</span></span><span class="dn"></span></button>');
     PH.dep = dp.querySelector('button'); PH.depN = dp.querySelector('.dn'); PH.dep.addEventListener('click', stuDeposit); phov.appendChild(dp);
   }
   function drawPhone(s) {
@@ -477,8 +488,8 @@
     }
     else if (A && PH.sea2) {
       var cx = PH.sea2.getContext('2d'), d2 = PH.sea2.width / w; cx.setTransform(d2, 0, 0, d2, 0, 0);
-      A.sea(cx, w, 300, { side: side, t: s.t, fish: side === 'east' ? ex.fishE : ex.fishW, warm: side === 'east' ? ex.warmE : 0, upwell: side === 'east' ? ex.upwell : 0.2, rain: side === 'east' ? ex.rainE : ex.rainW, flood: c === 'flood' ? 0.8 : 0, drought: side === 'west' ? ex.drought : 0, fire: c === 'fire' ? 0.8 : 0, sel: me.chosen ? (V.myCh || me.ch) : null });
-      var an = A.seaAnchors(w, 300, side), za = an[me.from], zb = an[me.to], ax = za[0] + za[2] / 2, ay = za[1] + za[3] / 2;
+      A.sea(cx, w, SEAH, { side: side, t: s.t, fish: side === 'east' ? ex.fishE : ex.fishW, warm: side === 'east' ? ex.warmE : 0, upwell: side === 'east' ? ex.upwell : 0.2, rain: side === 'east' ? ex.rainE : ex.rainW, flood: c === 'flood' ? 0.8 : 0, drought: side === 'west' ? ex.drought : 0, fire: c === 'fire' ? 0.8 : 0, sel: me.chosen ? (V.myCh || me.ch) : null });
+      var an = A.seaAnchors(w, SEAH, side), za = an[me.from], zb = an[me.to], ax = za[0] + za[2] / 2, ay = za[1] + za[3] / 2;
       A.boat(cx, ax + (zb[0] + zb[2] / 2 - ax) * me.p, ay + (zb[1] + zb[3] / 2 - ay) * me.p, 30, { village: side, k: me.k, state: me.out >= 1 ? 'out' : me.to, me: true, t: s.t });
     }
     if (A) { var tc = PH.top.getContext('2d'), d = PH.top.width / w; tc.setTransform(d, 0, 0, d, 0, 0); A.strip(tc, w, 56, { t: s.t, wind: ex.wind, warmE: ex.warmE, coolW: ex.coolW, side: side }); }
