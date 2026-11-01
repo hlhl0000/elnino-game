@@ -240,17 +240,20 @@
   var tvwrap = document.getElementById('tvwrap'), tv = document.getElementById('tv'), phone = document.getElementById('phone');
   var bd3 = document.getElementById('bd3'), bd2 = document.getElementById('bd2'), bdov = document.getElementById('bdov'), tvc2 = document.getElementById('tvc2'), tvov = document.getElementById('tvov'), phov = document.getElementById('phov');
   var DPR = Math.min(2, window.devicePixelRatio || 1);
+  /* 3D 캔버스 표시 크기 — Astra resize는 setSize(…, false)라 CSS 크기를 안 정한다. 안 정하면 화소 밀도 2 이상 휴대폰 · 배율 125 % PC에서
+     내부 크기(w × dpr)대로 커져 왼쪽 위만 보인다(11-01 실기기 제보 — 시험 환경은 dpr 1이라 안 드러남) */
+  function css3(c, w, h) { c.style.width = w + 'px'; c.style.height = h + 'px'; }
   function sizeCanvas(c, w, h, d) { c.width = Math.round(w * d); c.height = Math.round(h * d); c.style.width = w + 'px'; c.style.height = h + 'px'; }
   var W3 = null, P3 = null, phCanvas = document.createElement('canvas'), phSide = null;
   if (HOST) {
     tvwrap.hidden = false; sizeCanvas(tvc2, 1366, 768, DPR); sizeCanvas(bd2, 900, 560, DPR);
-    if (X3) { try { W3 = X3.create(bd3, { view: 'tv', side: 'east', dpr: DPR, quality: 'high' }); W3.resize(900, 560); bd2.style.display = 'none'; } catch (e) { W3 = null; } }
+    if (X3) { try { W3 = X3.create(bd3, { view: 'tv', side: 'east', dpr: DPR, quality: 'high' }); W3.resize(900, 560); css3(bd3, 900, 560); bd2.style.display = 'none'; } catch (e) { W3 = null; } }
     var fit = function () { var k = Math.min(window.innerWidth / 1366, window.innerHeight / 768); tv.style.transform = 'scale(' + k + ')'; };
     window.addEventListener('resize', fit); fit();
   } else { phone.hidden = false; }
   function phoneWorld(side) {
     if (!X3) return null; if (P3 && phSide === side) return P3; if (P3) P3.dispose();
-    try { P3 = X3.create(phCanvas, { view: 'phone', side: side, dpr: Math.min(2, window.devicePixelRatio || 1), quality: 'low' });   /* 휴대폰 = 가벼운 화질(Astra v2.1 quality low) */ P3.resize(phW(), 300); phSide = side; } catch (e) { P3 = null; }
+    try { P3 = X3.create(phCanvas, { view: 'phone', side: side, dpr: Math.min(2, window.devicePixelRatio || 1), quality: 'low' });   /* 휴대폰 = 가벼운 화질(Astra v2.1 quality low) */ P3.resize(phW(), 300); css3(phCanvas, phW(), 300); phSide = side; } catch (e) { P3 = null; }
     return P3;
   }
   function phW() { return Math.min(420, window.innerWidth); }
