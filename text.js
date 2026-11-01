@@ -3,8 +3,8 @@
    user: 사용자 추가 대기 자리 — 기본 비어 있음(비어 있으면 보이지 않는다).
    D16: «엘니뇨 일으키기»는 글자 없이 아이콘 길게 누르기. */
 window.ELNINO_TEXT = {
-  btn: { near: '가까운 바다', far: '먼바다', rest: '쉬기', join: '입장', pause: '멈춤', store: '맡기기',
-         practice: '연습', real: '실전', make: '방 만들기' },
-  ph: { room: '방 코드', nick: '별명', pin: 'PIN' },
+  btn: { near: '가까운 바다에서 활동', far: '먼바다에서 활동', rest: '쉬기', join: '입장', pause: '멈춤', store: '마을 창고에 맡기기',
+         practice: '연습', real: '실전', make: '방 만들기', leave: '나가기', ok: '확인' },   /* D21(사용자 11-01): 행동 단추가 무엇을 하는지 · 나가기 · 교사 비밀번호 */
+  ph: { room: '방 코드', nick: '별명', pin: 'PIN', teacher: '교사 비밀번호' },
   user: { lobbyTV: '', lobbyPhone: '', cardTV: '', cardPhone: '', endTV: '' }
 };

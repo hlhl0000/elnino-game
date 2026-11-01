@@ -21,7 +21,11 @@
   function lerpEnv(a, b, k) { if (!a) return b; var o = {}, key; for (key in b) o[key] = typeof b[key] === 'number' && typeof a[key] === 'number' ? a[key] + (b[key] - a[key]) * k : b[key]; return o; }
 
   /* ── 보기 상태(교사 · 학생 공통) ── */
-  var V = { mode: HOST ? 'make' : 'join', code: null, g: 0, practice: false, meta: [], meId: null, i: 0, env: CORE.envOf(1, null), prevEnv: null,
+  /* 교사 비밀번호(사용자 11-01) — 평문 대신 SHA-256('elnino:' + 비밀번호)만 둔다. 화면 단 잠금이다(저장소가 공개라 진짜 보안은 아님). 통과한 기기는 기억 */
+  var TEACH_HASH = '12431f0e63812ff19a3237fbc023381b3a2b5d1c3a1271cd91902fe2fb5e556c';
+  function teacherOk() { try { return localStorage.getItem('elnino-teacher') === TEACH_HASH; } catch (e) { return false; } }
+  function sha256hex(t) { return crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(function (b) { return Array.prototype.map.call(new Uint8Array(b), function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); }); }
+  var V = { mode: HOST ? (teacherOk() ? 'make' : 'gate') : 'join', code: null, g: 0, practice: false, meta: [], meId: null, i: 0, env: CORE.envOf(1, null), prevEnv: null,
     cards: {}, before: {}, prevRows: {}, rows: null, phase: 'news', phaseT0: now(), resultT0: 0, box: { west: 0, east: 0 }, chosen: {}, joined: [],
     log: null, rank: null, paused: false, myCh: null, myDep: 0 };
 
@@ -96,6 +100,7 @@
     }).catch(function (e) { H.busy = false; console.error(e); });
   }
   function hostNews() {
+    if (V.mode !== 'play' || !H.game) return;   /* 나가기 뒤 남은 예약 */
     var game = H.game; if (game.over) { hostEnd(); return; }
     var i = game.turn + 1;
     V.prevEnv = V.env; V.env = CORE.envOf(i, game.onset); V.i = i;
@@ -176,6 +181,18 @@
       });
     });
   }
+  /* 나가기(사용자 11-01) — 학생에게 «닫힘» 방송 → 방 상태 'end'(입장 · 이동 RLS가 막음) → 구독 해제 → 방 만들기 화면 */
+  function hostLeave() {
+    if (H.busy || (V.mode === 'play' && !V.paused)) return;
+    var code = V.code; H.busy = true;
+    Promise.resolve().then(function () { return bcast({ type: 'closed' }); }).catch(function () {}).then(function () { return NET.setStatus(code, 'end'); }).catch(function (e) { console.error(e); }).then(function () {
+      NET.leave(); try { localStorage.removeItem('elnino-host'); } catch (e) {}
+      H.game = null; H.pin = null; H.uidToId = {}; H.idToUid = {}; H.moves = {}; H.present = {}; H.trigCode = null; H.busy = false;
+      V.code = null; V.g = 0; V.i = 0; V.meta = []; V.joined = []; V.rows = null; V.prevRows = {}; V.rank = null; V.log = null; V.paused = false; V.chosen = {};
+      V.env = CORE.envOf(1, null); V.prevEnv = null; V.box = { west: 0, east: 0 }; V.cards = {}; V.phase = 'news';
+      V.mode = 'make';
+    });
+  }
   function hostPause() {
     if (V.mode !== 'play') return;
     if (!V.paused) { V.paused = true; V.pauseAt = now(); bcast({ type: 'pause' }); }
@@ -216,6 +233,7 @@
       var uid = NET.uid(); V.meId = null; V.meta.forEach(function (x) { if (x.uid === uid) V.meId = x.id; });
     } else if (m.type === 'result' && m.g === V.g && m.i === V.i) { V.rows = m.rows; V.box = m.box; V.phase = 'result'; V.resultT0 = t - (m.el || 0); }
     else if (m.type === 'end') { V.mode = 'end'; V.rank = m.rank; V.log = m.log; }
+    else if (m.type === 'closed') { NET.leave(); try { localStorage.removeItem('elnino-room'); } catch (e) {} V.code = null; V.meId = null; V.meta = []; V.rank = null; V.log = null; V.paused = false; V.mode = 'join'; }
     else if (m.type === 'pause') { V.paused = true; V.pauseAt = t; }
     else if (m.type === 'resume') { V.paused = false; if (m.phase === 'result') V.resultT0 = t - m.el; else V.phaseT0 = t - m.el; }
   }
@@ -295,7 +313,12 @@
   if (HOST) tv.appendChild(ctl);
   function buildCtl() {   /* 교사 조작 단추 · 입력칸 — 단계가 바뀔 때만 새로 만든다(10-31 E2E: 누르는 사이에 바뀌면 터치가 사라짐) */
     ctl.innerHTML = '';
-    if (V.mode === 'make') {
+    if (V.mode === 'gate') {
+      var gf = el('div', 'tvform'); gf.innerHTML = '<input id="tpw" type="password" inputmode="numeric" maxlength="12" placeholder="' + TX.ph.teacher + '"><button id="tok">' + TX.btn.ok + '</button>';
+      ctl.appendChild(gf);
+      var go = function () { var p = gf.querySelector('#tpw'); sha256hex('elnino:' + p.value).then(function (h) { if (h !== TEACH_HASH) { p.value = ''; shake(p); return; } try { localStorage.setItem('elnino-teacher', h); } catch (e) {} V.mode = 'make'; }); };
+      gf.querySelector('#tok').onclick = go; gf.querySelector('#tpw').onkeydown = function (e) { if (e.key === 'Enter') go(); };
+    } else if (V.mode === 'make') {
       var f = el('div', 'tvform'); f.innerHTML = '<input id="pin" inputmode="numeric" maxlength="8" placeholder="' + TX.ph.pin + '"><button id="mk">' + TX.btn.make + '</button>';
       ctl.appendChild(f);
       f.querySelector('#mk').onclick = function () { var p = f.querySelector('#pin'), bt = this; if (!/^\d{4,8}$/.test(p.value)) { shake(p); return; } bt.disabled = true; hostMake(p.value).catch(function (e) { console.error(e); bt.disabled = false; shake(p); }); };
@@ -308,8 +331,10 @@
       a.id = 'bPractice'; b.id = 'bReal';
       a.onclick = function () { hostStart(true); }; b.onclick = function () { hostStart(false); };
       ctl.appendChild(a); ctl.appendChild(b);
+      var lv = el('button', 'tvbtn', TX.btn.leave, 'left:12px;top:10px'); lv.id = 'bLeave'; lv.onclick = hostLeave; ctl.appendChild(lv);
     } else if (V.mode === 'play') {
       var pb = el('button', 'tvbtn', TX.btn.pause, 'left:12px;top:10px'); pb.onclick = hostPause; ctl.appendChild(pb);
+      var lv2 = el('button', 'tvbtn', TX.btn.leave, 'left:12px;top:62px'); lv2.id = 'bLeave'; lv2.onclick = hostLeave; ctl.appendChild(lv2);   /* 멈춘 동안만 눌림(실수로 판을 깨지 않게) */
       elninoIcon(ctl);
     }
   }
@@ -317,16 +342,17 @@
     if (V.mode !== ctlKey) { ctlKey = V.mode; buildCtl(); }
     var bp = document.getElementById('bPractice'), br = document.getElementById('bReal');
     if (bp) bp.disabled = br.disabled = V.joined.length === 0 || H.busy;
+    var bl = document.getElementById('bLeave'); if (bl) bl.disabled = H.busy || (V.mode === 'play' && !V.paused);
 
     var ctx = tvc2.getContext('2d'); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     var bctx = bd2.getContext('2d'); bctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    if (V.mode === 'play' || V.mode === 'lobby' || V.mode === 'make') {
+    if (V.mode === 'play' || V.mode === 'lobby' || V.mode === 'make' || V.mode === 'gate') {
       if (W3) { W3.update(s.t, state3(s)); W3.render(); } else { bctx.clearRect(0, 0, 900, 560); board2D(bctx, 900, 560, s); }
     }
     if (!dom) return;
     ctx.clearRect(0, 0, 1366, 768); tvov.innerHTML = ''; bdov.innerHTML = '';
     document.getElementById('board').style.visibility = V.mode === 'end' ? 'hidden' : 'visible';
-    if (V.mode === 'make') { drawRank(ctx, s); return; }
+    if (V.mode === 'make' || V.mode === 'gate') { drawRank(ctx, s); return; }
     if (V.mode === 'lobby') {
       bdov.appendChild(el('div', 'ov bigcode', V.code));
       bdov.appendChild(el('div', 'ov lobbyppl', '<span class="chip">' + icon('people') + '<span>' + V.joined.length + '</span></span>'));
@@ -433,11 +459,11 @@
     if (me.isOut) { PH.sea.appendChild(el('div', 'pout', icon('out', 72))); return; }
     var btns = el('div', 'pbtns'); PH.btn = {};
     ['near', 'far', 'rest'].forEach(function (k) {
-      var b = el('button', '', icon(k, 30) + '<span>' + TX.btn[k] + '</span>'); b.type = 'button';
+      var b = el('button', '', icon(k, 30) + '<span class="lb">' + TX.btn[k] + '</span><span class="cost">' + icon('stamina', 16) + '<span class="cv">' + ({ near: '−' + CORE.B.nearSt, far: '−' + CORE.B.farSt, rest: '+' + CORE.B.rest })[k] + '</span></span>'); b.type = 'button'; b.dataset.k = k;
       b.addEventListener('click', function () { stuChoose(k); }); btns.appendChild(b); PH.btn[k] = b;
     });
     phov.appendChild(btns);
-    var dp = el('div', 'pcoop', '<button type="button">' + icon('store', 22) + '<span>' + TX.btn.store + '</span><span class="dn"></span></button>');
+    var dp = el('div', 'pcoop', '<button type="button" data-k="store">' + icon('store', 22) + '<span>' + TX.btn.store + '</span><span class="cost">' + icon('fish', 16) + '<span>−1</span></span><span class="dn"></span></button>');
     PH.dep = dp.querySelector('button'); PH.depN = dp.querySelector('.dn'); PH.dep.addEventListener('click', stuDeposit); phov.appendChild(dp);
   }
   function drawPhone(s) {
@@ -466,7 +492,8 @@
     if (c && s.cardBig) { var cb = cardEl(c, 96, 128, s.cardFlip, s); cb.style.right = '8px'; cb.style.top = '8px'; PH.over.appendChild(cb); }
     PH.usr.textContent = c && s.cardBig ? TX.user.cardPhone : '';
     if (PH.btn) ['near', 'far', 'rest'].forEach(function (k) {
-      var b = PH.btn[k]; b.classList.toggle('sel', myCh === k); b.disabled = s.phase === 'result' || (c === 'flood' && k !== 'rest');
+      var b = PH.btn[k]; b.classList.toggle('sel', myCh === k);
+      if (k === 'rest') b.querySelector('.cv').textContent = '+' + (c === 'flood' ? CORE.B.restFlood : c === 'drought' ? CORE.B.restDrought : CORE.B.rest);   /* core 쉬기 규칙과 같은 원천 */ b.disabled = s.phase === 'result' || (c === 'flood' && k !== 'rest');
     });
     if (PH.dep) { PH.dep.disabled = s.phase === 'result'; PH.depN.textContent = V.myDep ? String(V.myDep) : ''; }
   }
@@ -475,11 +502,11 @@
   if (!HOST) {
     var saved = null; try { saved = localStorage.getItem('elnino-room'); } catch (e) {}
     if (saved) NET.signIn().then(function () { return NET.getRoom(saved); }).then(function (room) {
-      if (!room) return; V.code = saved; return NET.subscribe(saved, { turn: stuOnMsg }, false).then(function () { V.mode = 'wait'; });
+      if (!room || room.status === 'end') { try { localStorage.removeItem('elnino-room'); } catch (e) {} return; } V.code = saved; return NET.subscribe(saved, { turn: stuOnMsg }, false).then(function () { V.mode = 'wait'; });
     }).catch(function () {});
   }
   if (HOST) { var hs = null; try { hs = localStorage.getItem('elnino-host'); } catch (e) {}
-    if (hs) NET.signIn().then(function () { return hostRecover(hs); }).catch(function () { try { localStorage.removeItem('elnino-host'); } catch (e) {} }); }
+    if (hs && teacherOk()) NET.signIn().then(function () { return hostRecover(hs); }).catch(function () { try { localStorage.removeItem('elnino-host'); } catch (e) {} }); }
   window.__elnino = { V: V, H: H, snap: snapNow, T: function () { return T; }, three: function () { return !!(W3 || P3); } };
   requestAnimationFrame(frame);
 })();
